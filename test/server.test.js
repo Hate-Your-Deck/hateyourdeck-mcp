@@ -1,83 +1,15 @@
-import { describe, it, before, after, mock } from "node:test";
+import { describe, it, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
-import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { z } from "zod";
-
-/**
- * We can't import index.js directly (it connects to stdio and exits without
- * env vars), so we reconstruct the server tool registration here to test
- * the tool schema and the HTTP-calling logic with a mocked fetch.
- */
-
-function createServer() {
-  const server = new McpServer({
-    name: "hateyourdeck",
-    version: "1.0.0",
-  });
-
-  server.tool(
-    "query_hateyourdeck",
-    "Query the HateYourDeck knowledge base.",
-    {
-      text: z.string().describe("The question or topic to query."),
-      deck_type: z.enum(["lp", "startup"]).optional().describe("Filter by deck type."),
-    },
-    async ({ text, deck_type }) => {
-      const body = { text };
-      if (deck_type) {
-        body.deck_type = deck_type;
-      }
-
-      const response = await fetch("https://fake.api/query", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-api-key": "test-key",
-        },
-        body: JSON.stringify(body),
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        return {
-          content: [{ type: "text", text: `API error (${response.status}): ${errorText}` }],
-          isError: true,
-        };
-      }
-
-      const data = await response.json();
-
-      const citations = data.citations
-        ?.map(
-          (c, i) =>
-            `[${i + 1}] ${c.source_file} (${c.content_type}, ${c.deck_type}, similarity: ${c.similarity})\n    ${c.content_preview}`
-        )
-        .join("\n");
-
-      const parts = [{ type: "text", text: data.response }];
-
-      if (citations) {
-        parts.push({
-          type: "text",
-          text: `\n---\n**Sources (${data.chunks_retrieved} chunks retrieved):**\n${citations}`,
-        });
-      }
-
-      return { content: parts };
-    }
-  );
-
-  return server;
-}
+import { createServer } from "../index.js";
 
 describe("query_hateyourdeck tool", () => {
   let client;
   let server;
 
   before(async () => {
-    server = createServer();
+    server = createServer("https://fake.api", "test-key");
     const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
     await server.connect(serverTransport);
     client = new Client({ name: "test-client", version: "1.0.0" });
@@ -160,5 +92,62 @@ describe("query_hateyourdeck tool", () => {
 
     assert.equal(result.isError, true);
     assert.ok(result.content[0].text.includes("401"));
+  });
+
+  it("returns error on malformed JSON response", async (t) => {
+    t.mock.method(globalThis, "fetch", () =>
+      Promise.resolve(new Response("not json", { status: 200 }))
+    );
+
+    const result = await client.callTool({
+      name: "query_hateyourdeck",
+      arguments: { text: "test" },
+    });
+
+    assert.equal(result.isError, true);
+    assert.ok(result.content[0].text.includes("Failed to parse"));
+  });
+
+  it("handles missing response field gracefully", async (t) => {
+    t.mock.method(globalThis, "fetch", () =>
+      Promise.resolve(
+        new Response(JSON.stringify({ citations: [], chunks_retrieved: 0 }), { status: 200 })
+      )
+    );
+
+    const result = await client.callTool({
+      name: "query_hateyourdeck",
+      arguments: { text: "test" },
+    });
+
+    assert.equal(result.isError, undefined);
+    assert.ok(result.content[0].text.includes("No response returned"));
+  });
+
+  it("returns error on network failure", async (t) => {
+    t.mock.method(globalThis, "fetch", () =>
+      Promise.reject(new Error("ECONNREFUSED"))
+    );
+
+    const result = await client.callTool({
+      name: "query_hateyourdeck",
+      arguments: { text: "test" },
+    });
+
+    assert.equal(result.isError, true);
+    assert.ok(result.content[0].text.includes("Network error"));
+  });
+
+  it("returns error on timeout", async (t) => {
+    const timeoutErr = new DOMException("Signal timed out", "TimeoutError");
+    t.mock.method(globalThis, "fetch", () => Promise.reject(timeoutErr));
+
+    const result = await client.callTool({
+      name: "query_hateyourdeck",
+      arguments: { text: "test" },
+    });
+
+    assert.equal(result.isError, true);
+    assert.ok(result.content[0].text.includes("timed out"));
   });
 });

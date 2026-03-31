@@ -25,7 +25,7 @@ Open your Claude Desktop config file:
 - **Windows:** `%APPDATA%\Claude\claude_desktop_config.json`
 - **Mac:** `~/Library/Application Support/Claude/claude_desktop_config.json`
 
-Add the following (replace the paths and API key):
+The API URL is `https://t5ejdq60n1.execute-api.us-east-1.amazonaws.com`. Add the following (replace the paths and API key):
 
 **Windows:**
 
@@ -36,7 +36,7 @@ Add the following (replace the paths and API key):
       "command": "node",
       "args": ["C:\\Users\\YOUR_USERNAME\\hateyourdeck-mcp\\index.js"],
       "env": {
-        "HYD_API_URL": "https://t5ejdq60n1.execute-api.us-east-1.amazonaws.com",
+        "HYD_API_URL": "YOUR_API_URL_HERE",
         "HYD_API_KEY": "YOUR_API_KEY_HERE"
       }
     }
@@ -53,7 +53,7 @@ Add the following (replace the paths and API key):
       "command": "node",
       "args": ["/Users/YOUR_USERNAME/hateyourdeck-mcp/index.js"],
       "env": {
-        "HYD_API_URL": "https://t5ejdq60n1.execute-api.us-east-1.amazonaws.com",
+        "HYD_API_URL": "YOUR_API_URL_HERE",
         "HYD_API_KEY": "YOUR_API_KEY_HERE"
       }
     }
