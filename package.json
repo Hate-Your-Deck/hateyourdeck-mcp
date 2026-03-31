@@ -1,0 +1,17 @@
+{
+  "name": "hateyourdeck-mcp",
+  "version": "1.0.0",
+  "description": "MCP server for querying the HateYourDeck knowledge base from Claude Desktop",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "start": "node index.js",
+    "test": "node --test 'test/**/*.test.js'"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.12.1"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
